@@ -31,6 +31,7 @@ static RingbufHandle_t s_ringbuf_i2s = NULL;
 
 extern xQueueHandle i2s_queue;
 extern xQueueHandle flow_queue;
+extern xQueueHandle volume_queue;
 
 extern struct timeval tdif;
 
@@ -123,9 +124,11 @@ static void dsp_i2s_task_handler(void *arg) {
   int32_t ageusec;
   int playback_synced = 0;
   uint32_t flow_que_msg = 0;
+  uint32_t volume_que_msg = 0;
   int flow_state = 0;
   int flow_drain_counter = 0;
   double dynamic_vol = 1.0;
+  double client_vol = 0.5;
   for (;;) {
     // 23.12.2020 - JKJ : Buffer protocol major change
     //   - Audio data prefaced with timestamp and size tag server timesamp
@@ -174,6 +177,16 @@ static void dsp_i2s_task_handler(void *arg) {
             break;
         }
       }
+    }
+
+    if (xQueueReceive(volume_queue, &volume_que_msg, 0)) {
+      ESP_LOGI("I2S", "VOLUME Queue message: %d ", flow_que_msg);
+      client_vol = (double)volume_que_msg / 100;
+      if (client_vol > 1) {
+        client_vol = 1;
+      }
+      // Compensate for horrendous amplifier overvoltage
+      client_vol /= 2;
     }
 
     timestampSize = (uint8_t *)xRingbufferReceiveUpTo(
@@ -321,11 +334,11 @@ static void dsp_i2s_task_handler(void *arg) {
 
       for (uint16_t i = 0; i < len; i++) {
         sbuffer0[i] =
-            dynamic_vol * 0.5 *
+            client_vol * dynamic_vol * 0.5 *
             ((float)((int16_t)(audio[i * 4 + 1] << 8) + audio[i * 4 + 0])) /
             32768;
         sbuffer1[i] =
-            dynamic_vol * 0.5 *
+            client_vol * dynamic_vol * 0.5 *
             ((float)((int16_t)(audio[i * 4 + 3] << 8) + audio[i * 4 + 2])) /
             32768;
         sbuffer2[i] = ((sbuffer0[i] / 2) + (sbuffer1[i] / 2));
