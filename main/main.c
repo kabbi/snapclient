@@ -10,6 +10,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_ota_ops.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -172,6 +173,9 @@ static void http_get_task(void *pvParameters) {
     }
 
     ESP_LOGI(TAG, "... connected");
+
+    esp_ota_mark_app_valid_cancel_rollback();
+    ESP_LOGI(TAG, "marking firmware as valid, confirming ota");
 
     codec_header_message_t codec_header_message;
     wire_chunk_message_t wire_chunk_message;
